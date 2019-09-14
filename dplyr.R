@@ -161,3 +161,60 @@ by_species %>% summarise_at(c(1, 3), mean)
 by_species %>% summarise_at(vars(Petal.Width, Sepal.Width), funs(min, max))
 by_species %>% summarise_at(vars(matches("Width")), funs(min, max))
 select_if(iris, is.numeric) %>% summarise_all(funs(sd))
+
+
+# ЗАДАЧА
+# Функция должна возвращать dataframe с описательными статистиками и количеством NA, 
+# рассчитанными в каждой группе: 
+# - количеств наблюдений, 
+# - среднее значение, 
+# - стандартное отклонение, 
+# - медиана, 
+# - первый квартиль, 
+# - третий квартиль, 
+# - число пропущенных значений.
+test_data <- read.csv("https://stepic.org/media/attachments/course/724/salary.csv")
+test_data
+descriptive_stats <- function(dataset) {
+    dataset <- as_data_frame(dataset)
+    gr_dataset <- group_by(dataset, gender, country)
+    summarise(gr_dataset, n = n(), mean = mean(salary, na.rm = T), sd = sd(salary, na.rm = T), median = median(salary, na.rm = T),
+              first_quartile = quantile(salary, na.rm = T)[2], third_quartile = quantile(salary, na.rm = T)[4],
+              na_values = sum(is.na(salary)))
+}
+descriptive_stats(test_data)
+
+
+# ЗАДАЧА
+# Напишите функцию, to_factors, которая получает на вход dataframe  с произвольным числом количественных переменных 
+# и вектор с номерами колонок, которые нужно перевести в фактор.
+# Для перевода числовых колонок в фактор будем использовать следующий принцип, 
+# если наблюдение больше среднего всей переменной то 1, иначе 0.
+library(lazyeval)
+v_to_factor <- function(x) {
+    if (is.numeric(x)){
+        x <- ifelse(x - mean(x) > 0, 1, 0)
+    }
+    as.factor(x)
+}
+
+to_factors <- function(test_data, factors) {
+    mutate_at(test_data, names(test_data)[factors], v_to_factor)
+}
+
+to_factors(iris, c(1, 3))
+sapply(mtcars, is.numeric)
+
+
+# ЗАДАЧА
+# Применим полученные знания на практике. Возьмем данные diamonds для работы в этой задаче. 
+# Создайте новый dataframe с именем high_price, 
+# в котором будут хранится только 10 самых дорогих бриллиантов каждого цвета. 
+# Также в итоговом datafrmae должны храниться только две переменные color и price.
+library(ggplot2)
+data(diamonds)
+high_price <- diamonds %>% 
+    group_by(color) %>% 
+    arrange(desc(price)) %>% 
+    slice(1:10) %>% 
+    select(color, price)
