@@ -1,0 +1,94 @@
+---
+title: "Test"
+author: "Kate Che"
+output:
+  html_document: 
+    toc: yes
+    toc_float: yes
+  pdf_document: 
+    toc: yes
+    keep_tex: yes
+bibliography: bibl.bib
+urlcolor: blue
+params:
+    filename: glacier.csv
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggvis)
+options(scipen = 0, digits = 3)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+## Introduction
+
+The data used in study is taken from <https://open.canada.ca/en/open-data>[^1]. The algorithm is taken from @AntonovErmakov_RandomCubaturesQMS.
+
+[^1]: Here is the [direct link](https://open.canada.ca/data/en/dataset/57ba3e50-2024-4570-8acf-4b99544fb689) to data download.
+
+```{r}
+glacier <- read.csv("data/glacier.csv", na.strings = "..", comment.char = "#")
+names(glacier)[1] <- "REF_DATE"
+```
+
+The **data set** *contains* `r nrow(glacier)` measurements of `r nlevels(glacier$GEO)` Canadian ~~glacier~~ mass balance, collected from `r min(glacier$REF_DATE)` till `r max(glacier$REF_DATE)`. Namely, the file includes these glaciers:
+```{r}
+levels(glacier$GEO)
+```
+
+## Hypothesis
+
+We are interested in findong out whether there is a statistically significant cange in mass balance over the observed time period. For these purposes we use **R** (version `r getRversion()`) and an appropriate statistical test called _t-test_: $$t = \frac{\overline{x} - \mu_0}{s/\sqrt{n}}. $$
+
+The workflow is as follow:
+
+1. Read file 
+2. Run t-test for each glacier and collect p-values
+3. Support the evidence with 
+    + a table of results;
+    + a plot thet could help demonstrate the effect.
+    
+## Analysis
+
+```{r analysis, cache=TRUE}
+glacier <- glacier %>% 
+    select(REF_DATE, GEO, Type.of.measure, VALUE) %>% 
+    filter(Type.of.measure == "Annual mass balance") %>% 
+    separate(GEO, c("Name", "Location"), sep = ' - ')
+
+# descriptive analysis
+g1 <- glacier %>% 
+    group_by(Name) %>% 
+    summarise(YearsObserved = n(),
+              MeanChange = mean(VALUE, na.rm = T),
+              WorstChange = min(VALUE, na.rm = T),
+              WorstYear = REF_DATE[which.min(VALUE)])
+
+# t-test
+g2 <- glacier %>% 
+    group_by(Name) %>% 
+    do({
+        tt <- t.test(.$VALUE, alternative = 'less', mu = 0, conf.level = 0.99)
+        data.frame(PValue = tt$p.value, ConfidenceLimit = tt$conf.int[2])
+    })
+
+left_join(g1, g2, by = "Name") %>% 
+    knitr::kable(caption = "Descriptive statistics and confidence intervals", digits = c(0, 0, 2, 0, 0, 10, 2))
+```
+
+```{r ggplot, fig.width=10, fig.height=10}
+# ggplot(glacier, aes(REF_DATE, VALUE)) +
+#     geom_line() +
+#     geom_hline(data = g1, aes(yintercept = MeanChange),
+#                color = "red", linetype = "dashed", alpha = 0.8) +
+#     facet_wrap(~Name, nrow = 2)
+ggvis(glacier, ~REF_DATE, ~VALUE, stroke = ~Name) %>% 
+    layer_lines()
+```
+
+The conducted analysis supports the evidence that Canadian glaciers are <u>melting</u>.
+
+## Bibliography
